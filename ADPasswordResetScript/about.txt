@@ -5,37 +5,43 @@ This script was written to be a better solution for Helpdesk personnel to look u
 It's main advantage lies in quicker access to relevant user information, and single-window, mostly keyboard-driven operation.
 
 To illustrate this, consider a workflow with the Windows ADAC tool. The operator searches for the user to reset, double-clicks a result, then has to scroll down, click a tab, then scroll again through a long list of irrelevant data to get the date of the last password reset, ID number, DOB, alternate email, etc.
-With the ADPS script, the search results immediately display these key data points in table form, providing the operator with the information they need at a glance without a laborious GUI in their way.
+
+In the ADPS script, the search results immediately display these key data points in table form, providing the operator with the information they need at a glance without a laborious GUI in their way.
 
 
 
 
 Usage:
-(with your domain admin account) Double-click start.bat to run.
+Login with your domain admin account. Double-click start.bat to run.
 
 Enter a search query of two or more letters to search for users. 
 Tip: You can double-click a username or email to copy it to the clipboard. Right-click anywhere to paste.
 
 Enter 'r' to enter Password Reset mode.
 Enter 'u' to unlock an account.
+Enter 'd' to get details on an account.
+Enter 'l' to see log entries.
+Enter 'c' to clear the screen.
+Enter 'e' to exit the script.
 Enter 'h' to see help.
 
 
 
 
 Requirements:
-This script requires Windows ActiveDirectory tools to be installed. 
-In Windows 10 1809 or later you can run the following two commands to install them:
+This script requires Windows ActiveDirectory components to be installed. 
+In Windows 10 1809 or later you can run 'n' within the script to install them.
 
-(this command bypasses AD policy to get the component straight from Microsoft's servers)
-reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\Servicing" /v RepairContentServerSource /d 2 /t REG_DWORD /f
-
-powershell.exe -NoProfile -Command "Get-WindowsCapability -Online | Where-Object {$_.Name -like 'Rsat.ActiveDirectory*'} | Add-WindowsCapability -Online
+You can use this PowerShell command to uninstall them:
+Get-WindowsCapability -Online | Where-Object {$_.Name -like 'Rsat.ActiveDirectory*'} | Remove-WindowsCapability -Online
 
 
 
 
 
 History:
-1.0 (11/9/20) - First release. AD search, password reset, unlock, other minor functions. 
+1.1 (2/2/21) - Added function to install AD components. Main search results are now fully highlighted. Minor cosmetic changes. Window title added. Error logging now controlled by a variable. Logfile renamed.
+
+1.0 (11/9/20) - First release. AD search, password reset, unlock, other minor functions.
 Search results use dark grey to highlight expired passwords and Deprovisioned accounts.
+

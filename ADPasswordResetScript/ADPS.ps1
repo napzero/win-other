@@ -13,7 +13,8 @@ powershell -executionpolicy bypass ".\ADPS.ps1
 
 #>
 
-$Log_File = "$PSScriptRoot\Log_File.txt"
+$Log_File = "$PSScriptRoot\ADPS_Log_File.txt"
+$Log_errors = $false
 
 $canonicalNameTrim = 'contoso.com/'
 $emailRoot1 = '@contoso.com'
@@ -32,39 +33,54 @@ return }
 Get-ADUser -LDAPFilter:"(anr=$mainInput)" -properties CanonicalName,PasswordExpired,PasswordLastSet,`
 lastlogontimestamp,birthDate,employeeNumber,extensionAttribute9,LockedOut,description -ResultSetSize:"50" `
 | sort surName | `
-Format-Table givenName, surName, UserPrincipalName, `
-@{Label="ID number"; Expression={$_.employeeNumber}}, `
-@{Label="birthDate"; Expression={$_.birthDate.Insert(4,'-').Insert(7,'-')}}, `
-@{Label="alternateEmail"; Expression={$_.extensionAttribute9}}, `
+Format-Table @{Label="givenName"; Expression={ 
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$($_.givenName )${e}[0m"
+	}}, `
+@{Label="surName"; Expression={ 
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$($_.surName )${e}[0m"
+	}}, `
+@{Label="UserPrincipalName"; Expression={ 
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$($_.UserPrincipalName )${e}[0m"
+	}}, `
+@{Label="ID number"; Expression={
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$($_.employeeNumber )${e}[0m"
+	}}, `
+@{Label="birthDate"; Expression={
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$($_.birthDate.Insert(4,'-').Insert(7,'-') )${e}[0m"
+	}}, `
+@{Label="alternateEmail"; Expression={
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$($_.extensionAttribute9 )${e}[0m"
+	}}, `
 @{Label="Lock"; Expression={
-	if ("True" -eq $_.LockedOut)
-                {
-                    $color = "31"
-                }
+	if ("True" -eq $_.LockedOut) { $color = "31" }
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
 	$e = [char]27
 	"$e[${color}m$($_.LockedOut -replace 'True','Locked' -replace 'False','no' )${e}[0m"
 	}}, `
 @{Label="pwStatus"; Expression={
-	if ("True" -eq $_.PasswordExpired)
-                {
-                    $color = "90"
-                }
+	if ("True" -eq $_.PasswordExpired) { $color = "90" }
 	$e = [char]27
 	"$e[${color}m$($_.PasswordExpired -replace 'True','Expired' -replace 'False','OK' )${e}[0m" 
 	}}, `
 @{Label="passwordLastSet"; Expression={
-		if ("True" -eq $_.PasswordExpired)
-					{
-						$color = "90"
-					}
-		$e = [char]27
-		"$e[${color}m$(($_.passwordLastSet).ToString("M-dd-yyyy h:mm tt ") )${e}[0m" 
-}}, `
+	if ("True" -eq $_.PasswordExpired) { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$(($_.passwordLastSet).ToString("M-dd-yyyy h:mm tt ") )${e}[0m" 
+	}}, `
 @{Label="Container"; Expression={ 
-	if ($_.CanonicalName -split '/' -contains 'Deprovision')
-				{ 
-					$color = "90" 
-				}
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
 	$e = [char]27
 	"$e[${color}m$(($_.CanonicalName -replace $canonicalNameTrim,'' -replace $_.Name,'').TrimEnd('/') )${e}[0m"
 	}}, `
@@ -105,10 +121,11 @@ $tempString = read-host -Prompt  "Enter a password"
 $SecPaswd = ConvertTo-SecureString -String $tempString -AsPlainText -Force
 
 	try{
-		Set-ADAccountPassword -Identity $resetThisID -NewPassword $SecPaswd -Reset -PassThru -Verbose -ErrorAction Stop -Confirm:$true -WhatIf:$false
+		Set-ADAccountPassword -Identity $resetThisID -NewPassword $SecPaswd -Reset -PassThru -Verbose -ErrorAction Stop -Confirm:$true 
+		#-WhatIf:$true
     } catch {
         write-warning $Error[0]
-		write-output "$(Get-TimeStamp) Reset failed $resetThisID : $Error[0]" | Out-File $Log_File -Force -Append
+		if ( $Log_errors ) { write-output "$(Get-TimeStamp) Reset failed $resetThisID : $Error[0]" | Out-File $Log_File -Force -Append }
         return
     }
 
@@ -116,14 +133,14 @@ $SecPaswd = ConvertTo-SecureString -String $tempString -AsPlainText -Force
 		Set-ADUser -Identity $resetThisID -ChangePasswordAtLogon $false
     } catch {
         write-warning $Error[0]
-		write-output "$(Get-TimeStamp) Warning: $Error[0]" | Out-File $Log_File -Force -Append
+		if ( $Log_errors ) { write-output "$(Get-TimeStamp) Warning: $Error[0]" | Out-File $Log_File -Force -Append }
     }
 
 	try{
 		Unlock-ADAccount -Identity $resetThisID
     } catch {
         write-warning $Error[0]
-		write-output "$(Get-TimeStamp) Warning: $Error[0]" | Out-File $Log_File -Force -Append
+		if ( $Log_errors ) { write-output "$(Get-TimeStamp) Warning: $Error[0]" | Out-File $Log_File -Force -Append }
     }
 
 write-output "$(Get-TimeStamp) Reset success: $resetThisID" | Out-File $Log_File -Force -Append
@@ -141,7 +158,7 @@ Function UnLock {
 write-host
 $resetThisID = (read-host -Prompt  "Enter username or email to unlock")
 $resetThisID = $resetThisID -replace $emailRoot2,'' -replace $emailRoot1,''
-write-host -fore magenta $resetThisID
+#write-host -fore magenta $resetThisID
 
 #verify user or exit
 	try{
@@ -157,13 +174,13 @@ write-host -fore magenta $resetThisID
 		Unlock-ADAccount -Identity $resetThisID
     } catch {
 		write-warning $Error[0]
-        #write-output "$(Get-TimeStamp) Unlock failed ( $resetThisID ): $Error[0]"  | Out-File $Log_File -Force -Append
+        if ( $Log_errors ) { write-output "$(Get-TimeStamp) Unlock failed ( $resetThisID ): $Error[0]"  | Out-File $Log_File -Force -Append }
 		write-host
         return
     }
 
 write-output "$(Get-TimeStamp) Unlock success: $resetThisID" | Out-File $Log_File -Force -Append
-write-host "Unlocked.
+write-host -fore magenta "$resetThisID unlocked.
 "
 }
 
@@ -207,16 +224,37 @@ function Get-TimeStamp {
 
 }
 
+function InstallComponents {
+write-host "
+Installing ActiveDirectory components...
+"
+#TODO: If Win build lower than 1809/17763 then error out and quit.
+# If Win build higher than ...
+
+#TODO: elevation code if script is not already run as admin.
+
+#Get-ItemProperty -Path HKLM:SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU -Name UseWUServer
+Set-ItemProperty -Path HKLM:SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU -Name UseWUServer -Value 0
+
+Restart-Service -Name wuauserv -Force
+
+Get-WindowsCapability -Online | Where-Object {$_.Name -like 'Rsat.ActiveDirectory*'} | Add-WindowsCapability -Online
+write-host "
+Install completed.
+"
+}
+
 
 ##### main loop
+$host.UI.RawUI.WindowTitle = "ADPS"
 write-host "
-Welcome to AD user search and reset! v1.00
+Welcome to AD user search and reset! v1.1
 Search by name, login, or ID."
 write-host -fore cyan "Enter 'h' to see help.
 
 "
 
-while (($mainInput = Read-Host -Prompt "Enter search term or r/d/c") -ne "e") {
+while (($mainInput = Read-Host -Prompt "Enter search term or r/d/h") -ne "e") {
 switch ($mainInput) {
    r { ResetPass }
    e {"Exit" ; exit }
@@ -224,6 +262,7 @@ switch ($mainInput) {
    u {"Unlock" ; UnLock }
    c {"Clear" ; clear }
    l { DisplayLog }
+   n { InstallComponents }
    h {"
    Help:
    	<string> - search AD for this string
@@ -237,7 +276,7 @@ switch ($mainInput) {
 
 	Search results limited to 50 entries.
 	Best if viewed full-screen at 1680 resolution or better.
-	Windows RSAT.ActiveDirectory tools are required. See source for more info.
+	Windows RSAT.ActiveDirectory components are required. Run 'n' to install from script.
 
    "}
    default { searchForUser }
@@ -246,4 +285,9 @@ switch ($mainInput) {
 }
 
 #TODO:
-#Color-code main search results: Alternate Row Color
+#Color-code main search results: Alternate Row Highlight
+
+#New version:
+
+
+
