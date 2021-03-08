@@ -16,7 +16,7 @@ powershell -executionpolicy bypass ".\ADPS.ps1
 $Log_File = "$PSScriptRoot\ADPS_Log_File.txt"
 $Log_errors = $false
 
-$canonicalNameTrim = 'contoso.com/'
+$trimFromCanonicalName = 'contoso.com/'
 $emailRoot1 = '@contoso.com'
 $emailRoot2 = '@subdomain.contoso.com'
 
@@ -31,7 +31,7 @@ return }
 
 #For readability, the line below has been split up using ` 
 Get-ADUser -LDAPFilter:"(anr=$mainInput)" -properties CanonicalName,PasswordExpired,PasswordLastSet,`
-lastlogontimestamp,birthDate,employeeNumber,extensionAttribute9,LockedOut,description -ResultSetSize:"50" `
+lastlogontimestamp,birthDate,employeeNumber,extensionAttribute9,LockedOut,description,title -ResultSetSize:"50" `
 | sort surName | `
 Format-Table @{Label="givenName"; Expression={ 
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
@@ -63,28 +63,28 @@ Format-Table @{Label="givenName"; Expression={
 	$e = [char]27
 	"$e[${color}m$($_.extensionAttribute9 )${e}[0m"
 	}}, `
-@{Label="Lock"; Expression={
-	if ("True" -eq $_.LockedOut) { $color = "31" }
-	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+@{Label="pwState"; Expression={
+	$t = "OK"
+	if ("True" -eq $_.PasswordExpired) { $color = "90" ; $t = "Expired" }
+	if ("True" -eq $_.LockedOut) { $color = "31" ; $t = "Locked" }
 	$e = [char]27
-	"$e[${color}m$($_.LockedOut -replace 'True','Locked' -replace 'False','no' )${e}[0m"
-	}}, `
-@{Label="pwStatus"; Expression={
-	if ("True" -eq $_.PasswordExpired) { $color = "90" }
-	$e = [char]27
-	"$e[${color}m$($_.PasswordExpired -replace 'True','Expired' -replace 'False','OK' )${e}[0m" 
+	"$e[${color}m$( $t )${e}[0m" 
 	}}, `
 @{Label="passwordLastSet"; Expression={
 	if ("True" -eq $_.PasswordExpired) { $color = "90" }
 	$e = [char]27
 	"$e[${color}m$(($_.passwordLastSet).ToString("M-dd-yyyy h:mm tt ") )${e}[0m" 
 	}}, `
-@{Label="Container"; Expression={ 
+@{Label="container"; Expression={
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
 	$e = [char]27
-	"$e[${color}m$(($_.CanonicalName -replace $canonicalNameTrim,'' -replace $_.Name,'').TrimEnd('/') )${e}[0m"
+	"$e[${color}m$(($_.CanonicalName -replace $trimFromCanonicalName,'' -replace $_.Name,'').TrimEnd('/') )${e}[0m "
 	}}, `
-description
+@{Label="description/title"; Expression={
+	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
+	$e = [char]27
+	"$e[${color}m$( $_.description + $_.title )${e}[0m"
+	}}
 
 
 write-host
@@ -248,7 +248,7 @@ Install completed.
 ##### main loop
 $host.UI.RawUI.WindowTitle = "ADPS"
 write-host "
-Welcome to AD user search and reset! v1.1
+Welcome to AD user search and reset! v1.2
 Search by name, login, or ID."
 write-host -fore cyan "Enter 'h' to see help.
 
@@ -285,9 +285,15 @@ switch ($mainInput) {
 }
 
 #TODO:
+#Fix the occasional leftover buffer output from Details function
 #Color-code main search results: Alternate Row Highlight
+#Temp unlock search limit?
 
-#New version:
 
+#This version:
+#Added title to description column.
+#Merged Lock status column into pwStatus, saving screen space.
+#Renamed pwStatus to pwState.
+#Some cosmetic fixes.
 
 

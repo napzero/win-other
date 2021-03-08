@@ -40,6 +40,8 @@ Get-WindowsCapability -Online | Where-Object {$_.Name -like 'Rsat.ActiveDirector
 
 
 History:
+1.2 (3/8/21) - Added title to description column. Merged Lock status column into pwStatus, saving screen space. Renamed pwStatus to pwState. Some cosmetic fixes.
+
 1.1 (2/2/21) - Added function to install AD components. Main search results are now fully highlighted. Minor cosmetic changes. Window title added. Error logging now controlled by a variable. Logfile renamed.
 
 1.0 (11/9/20) - First release. AD search, password reset, unlock, other minor functions.
