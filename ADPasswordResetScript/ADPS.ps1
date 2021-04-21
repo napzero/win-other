@@ -15,80 +15,79 @@ powershell -executionpolicy bypass ".\ADPS.ps1
 
 $Log_File = "$PSScriptRoot\ADPS_Log_File.txt"
 $Log_errors = $false
+$searchResultsSizeLimit = 50
 
 $trimFromCanonicalName = 'contoso.com/'
 $emailRoot1 = '@contoso.com'
 $emailRoot2 = '@subdomain.contoso.com'
 
 
-Function searchForUser {
-write-host
 
-if ($mainInput.length -lt 2) {
-write-host "Searches must be at least two characters.
-"
-return }
+Function searchADUser {
+	param (
+		[string]$searchThisString
+	)
 
+$e = [char]27
 #For readability, the line below has been split up using ` 
-Get-ADUser -LDAPFilter:"(anr=$mainInput)" -properties CanonicalName,PasswordExpired,PasswordLastSet,`
-lastlogontimestamp,birthDate,employeeNumber,extensionAttribute9,LockedOut,description,title -ResultSetSize:"50" `
+Get-ADUser -LDAPFilter:"(anr=$searchThisString)" -properties CanonicalName,PasswordExpired,PasswordLastSet,`
+lastlogontimestamp,birthDate,employeeNumber,extensionAttribute9,LockedOut,description,title -ResultSetSize:"$searchResultsSizeLimit" `
 | sort surName | `
 Format-Table @{Label="givenName"; Expression={ 
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$($_.givenName )${e}[0m"
 	}}, `
 @{Label="surName"; Expression={ 
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$($_.surName )${e}[0m"
 	}}, `
 @{Label="UserPrincipalName"; Expression={ 
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$($_.UserPrincipalName )${e}[0m"
 	}}, `
 @{Label="ID number"; Expression={
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$($_.employeeNumber )${e}[0m"
 	}}, `
 @{Label="birthDate"; Expression={
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$($_.birthDate.Insert(4,'-').Insert(7,'-') )${e}[0m"
 	}}, `
 @{Label="alternateEmail"; Expression={
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$($_.extensionAttribute9 )${e}[0m"
 	}}, `
 @{Label="pwState"; Expression={
 	$t = "OK"
 	if ("True" -eq $_.PasswordExpired) { $color = "90" ; $t = "Expired" }
 	if ("True" -eq $_.LockedOut) { $color = "31" ; $t = "Locked" }
-	$e = [char]27
 	"$e[${color}m$( $t )${e}[0m" 
 	}}, `
 @{Label="passwordLastSet"; Expression={
 	if ("True" -eq $_.PasswordExpired) { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$(($_.passwordLastSet).ToString("M-dd-yyyy h:mm tt ") )${e}[0m" 
 	}}, `
 @{Label="container"; Expression={
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
 	"$e[${color}m$(($_.CanonicalName -replace $trimFromCanonicalName,'' -replace $_.Name,'').TrimEnd('/') )${e}[0m "
 	}}, `
-@{Label="description/title"; Expression={
+@{Label="title/description"; Expression={
 	if ($_.CanonicalName -split '/' -contains 'Deprovision') { $color = "90" }
-	$e = [char]27
-	"$e[${color}m$( $_.description + $_.title )${e}[0m"
+	$t = $_.title + $_.description
+	if ( $_.title -And $_.description ) { $t = $_.title + ' / ' + $_.description }
+	"$e[${color}m$( $t )${e}[0m"
 	}}
 
-
-write-host
 }
+
+
+Function getADUserShort {
+		param (
+		[string]$getThisID
+	)
+	Get-ADUser -Identity $getThisID -properties employeeNumber, passwordLastSet | Format-Table givenName, surName, UserPrincipalName, @{Label="ID number"; Expression={$_.employeeNumber}}, @{Label="passwordLastSet"; Expression={($_.passwordLastSet).ToString("M-dd-yyyy h:mm tt ")}}
+}
+
 
 
 Function ResetPass {
@@ -99,14 +98,14 @@ write-host -fore magenta $resetThisID
 
 #verify user or exit
 	try{
-		Get-ADUser -Identity $resetThisID -properties employeeNumber, passwordLastSet | Format-Table givenName, surName, UserPrincipalName, @{Label="ID number"; Expression={$_.employeeNumber}}, @{Label="passwordLastSet"; Expression={($_.passwordLastSet).ToString("M-dd-yyyy h:mm tt ")}}
+		getADUserShort $resetThisID
 	} catch {
 		write-host -fore yellow "Not a valid username! Please try again.
 		"
 		return
 	}
 
-$tempString = read-host -Prompt  "Enter a password"
+$tempString = read-host -Prompt  "Enter a password (e to exit)"
 
 	if ($tempString.length -eq 1 -and $tempString -match "e") {
 		write-host "Cancelled.
@@ -150,6 +149,7 @@ write-host "
 Success. Press any key to clear the screen and continue..."
 $x = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 clear
+getADUserShort $resetThisID
 write-host
 }
 
@@ -162,7 +162,7 @@ $resetThisID = $resetThisID -replace $emailRoot2,'' -replace $emailRoot1,''
 
 #verify user or exit
 	try{
-		Get-ADUser -Identity $resetThisID -properties employeeNumber, passwordLastSet | Format-Table givenName, surName, UserPrincipalName, @{Label="ID number"; Expression={$_.employeeNumber}}, @{Label="passwordLastSet"; Expression={($_.passwordLastSet).ToString("M-dd-yyyy h:mm tt ")}}
+		getADUserShort $resetThisID
 	} catch {
 		write-warning $Error[0]
 		write-host "Please try again.
@@ -182,6 +182,8 @@ $resetThisID = $resetThisID -replace $emailRoot2,'' -replace $emailRoot1,''
 write-output "$(Get-TimeStamp) Unlock success: $resetThisID" | Out-File $Log_File -Force -Append
 write-host -fore magenta "$resetThisID unlocked.
 "
+getADUserShort $resetThisID
+write-host
 }
 
 
@@ -232,6 +234,7 @@ Installing ActiveDirectory components...
 # If Win build higher than ...
 
 #TODO: elevation code if script is not already run as admin.
+#Start-Process -FilePath "powershell" -Verb runAs
 
 #Get-ItemProperty -Path HKLM:SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU -Name UseWUServer
 Set-ItemProperty -Path HKLM:SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU -Name UseWUServer -Value 0
@@ -244,11 +247,21 @@ Install completed.
 "
 }
 
+function ShortGreeting {
+	whoami
+	write-host "ADPS v1.3beta
+Search by name, login, or ID."
+write-host -fore cyan "Enter 'h' to see help.
+
+"
+}
+
 
 ##### main loop
 $host.UI.RawUI.WindowTitle = "ADPS"
+whoami
 write-host "
-Welcome to AD user search and reset! v1.2
+Welcome to AD user search and reset! v1.3
 Search by name, login, or ID."
 write-host -fore cyan "Enter 'h' to see help.
 
@@ -260,12 +273,12 @@ switch ($mainInput) {
    e {"Exit" ; exit }
    d {"Details" ; GetDetails }
    u {"Unlock" ; UnLock }
-   c {"Clear" ; clear }
+   c {"Clear" ; clear ; ShortGreeting }
    l { DisplayLog }
    n { InstallComponents }
    h {"
    Help:
-   	<string> - search AD for this string
+   	<string> - search AD for this string. Accepts two or more characters.
 	r - reset password
 	u - unlock account
 	d - get details for a user
@@ -279,21 +292,25 @@ switch ($mainInput) {
 	Windows RSAT.ActiveDirectory components are required. Run 'n' to install from script.
 
    "}
-   default { searchForUser }
-   }
-
+   default { write-host
+			if ($mainInput.length -lt 2) {
+			write-host
+			} else { searchADUser $mainInput ; write-host }
+		}
+	}
 }
 
 #TODO:
-#Fix the occasional leftover buffer output from Details function
+#Fix the occasional leftover buffer output from Details function. Fixed?
 #Color-code main search results: Alternate Row Highlight
 #Temp unlock search limit?
 
 
-#This version:
-#Added title to description column.
-#Merged Lock status column into pwStatus, saving screen space.
-#Renamed pwStatus to pwState.
-#Some cosmetic fixes.
 
+#This version:
+#Changed order of last column fields, added a separator between them.
+#Display short greeting when clearing screen.
+#Display user running the script in greeting.
+#Display affected user account after resetting or unlocking.
+#Small code and text improvements.
 

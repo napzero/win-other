@@ -40,6 +40,8 @@ Get-WindowsCapability -Online | Where-Object {$_.Name -like 'Rsat.ActiveDirector
 
 
 History:
+1.3 (4/21/21) - Changed order of last column fields, added a separator between them. Display user running the script in greeting. Display affected user account after resetting or unlocking. Small code and text improvements.
+
 1.2 (3/8/21) - Added title to description column. Merged Lock status column into pwStatus, saving screen space. Renamed pwStatus to pwState. Some cosmetic fixes.
 
 1.1 (2/2/21) - Added function to install AD components. Main search results are now fully highlighted. Minor cosmetic changes. Window title added. Error logging now controlled by a variable. Logfile renamed.
